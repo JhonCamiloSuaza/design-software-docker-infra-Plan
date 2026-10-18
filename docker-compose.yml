@@ -46,7 +46,7 @@ services:
         condition: service_healthy
     working_dir: /workspace
     volumes:
-      - ${DB_REPOS_DIR:-..}/design-software-academic-management-db:/workspace
+      - ${DB_REPOS_DIR:-..}/design-software-academic-management-db-Plan:/workspace
     entrypoint:
       - liquibase
       - --search-path=/workspace
@@ -222,7 +222,7 @@ services:
   # ===========================================================================
   traefik:
     image: traefik:v3.1
-    profiles: [edge, notification, iam]
+    profiles: [edge, notification, iam, academic]
     command:
       - --providers.docker=true
       - --providers.docker.endpoint=${TRAEFIK_DOCKER_ENDPOINT:-unix:///var/run/docker.sock}
@@ -293,7 +293,7 @@ services:
   # ===========================================================================
   rabbitmq:
     image: rabbitmq:3.13-management
-    profiles: [broker, notification, iam, actors, scheduling]
+    profiles: [broker, notification, iam, actors, scheduling, academic]
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-app}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-app}
@@ -320,6 +320,42 @@ services:
     ports:
       - "${MAILHOG_SMTP_PORT:-1025}:1025"
       - "${MAILHOG_UI_PORT:-18025}:8025"
+
+  # ===========================================================================
+  # ACADEMIC MANAGEMENT — perfil 'academic'.
+  # It is intentionally self-contained for the individual R1 verification:
+  # PostgreSQL + RabbitMQ + academic API.  Local profile `dev` supplies the
+  # development JWT decoder; production keeps the IAM JWKS configuration.
+  # ===========================================================================
+  academic-api:
+    build:
+      context: ${ACADEMIC_SERVICE_PATH:-../design-software-academic-management-service-Plan}
+      dockerfile: deploy/Dockerfile.api
+    profiles: [academic]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_URL: "jdbc:postgresql://postgres:5432/${POSTGRES_DB}?currentSchema=academic_management"
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USER:-app}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-app}
+      ACADEMIC_R1_CONSUMER_ENABLED: "true"
+      OTEL_TRACES_SAMPLING: "0.0"
+    ports:
+      - "${ACADEMIC_API_PORT:-8003}:8003"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.academic.rule=PathPrefix(`/academic`)"
+      - "traefik.http.routers.academic.middlewares=academic-strip"
+      - "traefik.http.middlewares.academic-strip.stripprefix.prefixes=/academic"
+      - "traefik.http.services.academic.loadbalancer.server.port=8003"
 
   # ===========================================================================
   # NOTIFICATION SERVICE (api + worker) — perfil 'notification'. ADR-001/007/008.
