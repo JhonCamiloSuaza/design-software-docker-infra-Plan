@@ -118,7 +118,7 @@ services:
         condition: service_healthy
     working_dir: /workspace
     volumes:
-      - ${DB_REPOS_DIR:-..}/design-software-iam-db:/workspace
+      - ${DB_REPOS_DIR:-..}/design-software-iam-db-Plan:/workspace
     entrypoint:
       - liquibase
       - --search-path=/workspace
@@ -154,7 +154,7 @@ services:
         condition: service_healthy
     working_dir: /workspace
     volumes:
-      - ${DB_REPOS_DIR:-..}/design-software-reference-data-db:/workspace
+      - ${DB_REPOS_DIR:-..}/design-software-reference-data-db-Plan:/workspace
     entrypoint:
       - liquibase
       - --search-path=/workspace
@@ -411,7 +411,7 @@ services:
   # ===========================================================================
   iam-api:
     build:
-      context: ${BACKEND_REPOS_DIR:-..}/design-software-iam-service
+      context: ${BACKEND_REPOS_DIR:-..}/design-software-iam-service-Plan
       dockerfile: deploy/Dockerfile.api
     profiles: [iam, scheduling]
     depends_on:

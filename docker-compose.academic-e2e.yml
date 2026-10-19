@@ -1,0 +1,40 @@
+# Complemento local para demostrar el flujo académico con IAM y datos de
+# referencia reales. Se usa junto con docker-compose.yml; no modifica los
+# perfiles de otros dominios.
+services:
+  iam-api:
+    environment:
+      # Actors no interviene al emitir el token del administrador usado por
+      # esta prueba. Sin endpoint HTTPS, el cliente conserva el contexto TLS
+      # por defecto y no necesita certificados mTLS locales.
+      IAM_ACTORS_ACTIVE_FICHA_URL: ""
+      IAM_ACTORS_MTLS_KEY_STORE: ""
+      IAM_ACTORS_MTLS_KEY_STORE_PASSWORD: ""
+      IAM_ACTORS_MTLS_TRUST_STORE: ""
+      IAM_ACTORS_MTLS_TRUST_STORE_PASSWORD: ""
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
+    volumes: !reset []
+    ports:
+      - "${IAM_API_PORT:-8001}:8080"
+
+  academic-api:
+    environment:
+      # El token viene de IAM real, no del decoder de desarrollo.
+      SPRING_PROFILES_ACTIVE: ""
+      IAM_JWKS_URI: "http://iam-api:8080/api/v1/auth/.well-known/jwks.json"
+      # reference-data-service corre localmente y la API lo alcanza desde
+      # Docker Desktop mediante host.docker.internal.
+      REFERENCE_DATA_BASE_URL: "http://host.docker.internal:${REFERENCE_DATA_PORT:-8080}"
+
+  academic-mfe:
+    build:
+      context: ${ACADEMIC_MFE_PATH:-../design-software-academic-management-mfe-Plan}
+      dockerfile: Dockerfile
+    profiles: [academic]
+    depends_on:
+      academic-api:
+        condition: service_started
+    environment:
+      ACADEMIC_API_PROXY_TARGET: "http://academic-api:8003"
+    ports:
+      - "${ACADEMIC_MFE_PORT:-5103}:5103"
